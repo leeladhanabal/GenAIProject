@@ -26,7 +26,7 @@ A web application and API that coordinate AI-assisted planning and script genera
 
 ## 6. Functional Requirements
 
-- Authenticate users through an OpenID Connect identity provider (provider pending).
+- Authenticate users through Google Identity using OpenID Connect; domain, MFA, and user-lifecycle configuration remain to be confirmed.
 - Create projects and register approved application targets.
 - Accept requirements and API specifications for test planning.
 - Use one selected AI provider (pending) to assist with scenario and k6 script generation and result interpretation.
@@ -72,7 +72,7 @@ Out of scope for MVP: JMeter/LoadRunner/Gatling, multi-cloud deployment, complex
 | Object storage | Google Cloud Storage | Private bucket for scripts, raw results, and reports. |
 | Cloud | Google Cloud | Containerized API and isolated worker workloads. |
 | CI/CD | GitHub Actions | Separate development, staging, production deployments. |
-| Identity | OpenID Connect | Provider remains to be selected. |
+| Identity | Google Identity / Google Cloud Identity | OIDC provider selected; configure client, audience, MFA, and user lifecycle. |
 | AI | One provider behind an adapter | Provider remains to be selected. |
 | Observability | Google Cloud Logging and Monitoring | Structured logs, dashboards, metrics, alerts. |
 
@@ -248,7 +248,7 @@ A run response includes status, timestamps, summary metrics and report IDs when 
 
 ## 21. Authentication and Authorization
 
-Use OIDC Authorization Code flow with PKCE for browser login. Validate issuer, audience, signature, expiry, nonce, and state. The concrete identity provider remains pending. API clients should use scoped, expiring/revocable tokens rather than user passwords; token lifecycle and provider support need selection. Enforce project membership and ownership on every object lookup. Shared role means equal capabilities within a project, not global access to every tenant's data.
+Use OIDC Authorization Code flow with PKCE for browser login. Validate issuer, audience, signature, expiry, nonce, and state. Google Identity is the selected provider; configure the OAuth client and confirm domain, MFA, and user lifecycle. API clients should use scoped, expiring/revocable tokens rather than user passwords; token lifecycle and provider support need selection. Enforce project membership and ownership on every object lookup. Shared role means equal capabilities within a project, not global access to every tenant's data.
 
 ## 22. Security Architecture
 
@@ -266,7 +266,7 @@ Use OIDC Authorization Code flow with PKCE for browser login. Validate issuer, a
 ## 23. External Integrations
 
 - **AI provider:** Adapter interface for planning, script assistance, and analysis. Provider selection pending. Define data minimization, retention, training-use policy, quotas, timeout/retry behavior, and prompt-injection handling before production use.
-- **Identity provider:** OIDC provider pending. Confirm domain, MFA, user lifecycle, and logout requirements.
+- **Identity provider:** Google Identity selected. Confirm domain, MFA, user lifecycle, and logout requirements.
 - **k6:** Pin a supported runtime/container image; validate generated scripts and execution options.
 - **Notifications:** In-app notification is internal; email provider pending. Use an outbox/retry design and record delivery state.
 - **GitHub Actions:** CI can invoke API with scoped credentials once token issuance is finalized.
@@ -359,7 +359,7 @@ Within `apps/api/src`, organize by feature modules (`identity`, `projects`, `tar
 Objective: establish repository, conventions, and safety boundaries. Tasks: workspace setup, CI checks, cloud environment plan, target threat model, workload policy. Dependencies: none. Deliverables: repo skeleton, ADRs, threat model. Acceptance: CI runs; target and resource policies reviewed. Testing: lint/typecheck and policy unit tests.
 
 ### Phase 2 — Identity, projects, targets, and persistence
-Objective: secure tenant-scoped foundation. Tasks: OIDC integration, project membership, PostgreSQL schema/migrations, target registration and validation, audit events. Dependencies: identity provider decision. Deliverables: authenticated APIs and project/target UI. Acceptance: users cannot access unrelated project data; unsafe targets rejected. Testing: API/access control and URL policy tests.
+Objective: secure tenant-scoped foundation. Tasks: OIDC integration, project membership, PostgreSQL schema/migrations, target registration and validation, audit events. Dependencies: Google OAuth client and identity policy configuration. Deliverables: authenticated APIs and project/target UI. Acceptance: users cannot access unrelated project data; unsafe targets rejected. Testing: API/access control and URL policy tests.
 
 ### Phase 3 — Planning and script generation
 Objective: create reviewable plans and k6 scripts. Tasks: plan/version model, AI adapter, input specification handling, script generation, editing/review UI. Dependencies: AI provider decision and data policy. Deliverables: saved plan versions and downloadable scripts. Acceptance: generated output validated and requires user review before run. Testing: provider contract mocks, injection/input tests, script validation tests.
@@ -375,7 +375,7 @@ Objective: deploy and operate safely. Tasks: dashboards/alerts, security scannin
 
 ## 33. Dependencies
 
-- Decisions: OIDC provider; AI provider and data-use terms; email provider; deletion schedule and notice lead time; Google Cloud worker runtime/networking design; API token issuance model.
+- Decisions: Google Identity domain/MFA/user-lifecycle configuration; AI provider and data-use terms; email provider; deletion schedule and notice lead time; Google Cloud worker runtime/networking design; API token issuance model.
 - External: Google Cloud project/billing and service accounts; GitHub repository and environments; approved test target environments; provider credentials.
 - Product: final report formats, SLA thresholds, export/backup behavior, organization/project sharing policy.
 
@@ -405,7 +405,7 @@ Objective: deploy and operate safely. Tasks: dashboards/alerts, security scannin
 
 ## 36. Pending Decisions
 
-1. Identity provider and required MFA/domain/user lifecycle features.
+1. Google Identity domain, MFA, user lifecycle, and logout requirements.
 2. AI provider, model, data handling, prompt retention, and acceptable inputs.
 3. Email provider and notification delivery configuration.
 4. **Retention policy:** 30 days was requested, and users asked for email/in-app notification before deletion to allow backup. Confirm whether 30 days is the deletion point or merely a minimum retention period, whether deletion is automatic after notice, the notice lead time, and whether data is retained until the user confirms or takes no action. Until resolved, do not run an automatic deletion job.

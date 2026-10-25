@@ -1,0 +1,95 @@
+{
+  "info": {
+    "name": "Phase 5 — Explicit project deletion (disabled by default)",
+    "description": "Use only after downloading a backup. Enter the intended projectId and set collection variable confirmProjectDeletion to true to enable request 01. Deletion revokes project access immediately. start:phase5 must be running to remove files and metadata. Minimal audit/status/idempotency tombstones remain.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000/api/v1"
+    },
+    {
+      "key": "projectId",
+      "value": ""
+    },
+    {
+      "key": "confirmProjectDeletion",
+      "value": "false"
+    },
+    {
+      "key": "deletionRequestId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Confirm project deletion — explicitly enable first",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/projects/{{projectId}}/deletion-requests",
+        "description": "Expected HTTP 202. See docs/phase-5-results.md for setup and response fields.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"confirmed\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.collectionVariables.get(\"confirmProjectDeletion\") !== \"true\") { console.warn(\"Skipped: save your backup, verify projectId, then explicitly set confirmProjectDeletion=true.\"); pm.execution.skipRequest(); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 202\", () => pm.response.to.have.status(202));",
+              "if (pm.response.code === 202) pm.collectionVariables.set(\"deletionRequestId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Poll deletion until completed",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/deletion-requests/{{deletionRequestId}}",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Valid deletion state\", () => pm.expect([\"pending\", \"retrying\", \"completed\"]).to.include(pm.response.json().status));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

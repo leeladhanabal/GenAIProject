@@ -1,0 +1,433 @@
+{
+  "info": {
+    "name": "AI Performance Agent — Phase 4 only",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Phase 4 APIs using the fixed local mock user and Postman No Auth. Start with 00 Setup to obtain real project/plan IDs. Configure approved run ceilings and Docker/Redis before approving actual load. Set planVersion, virtualUsers and durationSeconds to the exact reviewed values. See docs/postman-get-started.md and docs/phase-4-runs.md."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "planId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "planVersion",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "virtualUsers",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "durationSeconds",
+      "value": "10",
+      "type": "string"
+    },
+    {
+      "key": "runId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "projectId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scriptSha256",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Setup — obtain real project and plan IDs",
+      "description": "No token is required. Send these requests individually. A single project/plan is selected automatically; when multiple items exist, set projectId/planId from the response. The final request fills the current version, target, workload, and checksum. Review the script explicitly before approving a run.",
+      "item": [
+        {
+          "name": "A List projects for the fixed local user",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/projects",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const items = pm.response.json().items;",
+                  "  pm.test(\"Accessible project exists\", () => pm.expect(items.length).to.be.above(0));",
+                  "  const selected = pm.collectionVariables.get(\"projectId\");",
+                  "  if (!items.some(item => item.id === selected)) {",
+                  "    pm.collectionVariables.set(\"projectId\", items.length === 1 ? items[0].id : \"\");",
+                  "    pm.collectionVariables.set(\"planId\", \"\");",
+                  "  }",
+                  "  if (items.length > 1 && !pm.collectionVariables.get(\"projectId\")) console.info(\"Choose projectId from items in this response and set the collection variable before continuing.\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B List plans in selected project",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/projects/{{projectId}}/plans",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const items = pm.response.json().items;",
+                  "  pm.test(\"Saved plan exists\", () => pm.expect(items.length).to.be.above(0));",
+                  "  const selected = pm.collectionVariables.get(\"planId\");",
+                  "  if (!items.some(item => item.id === selected)) pm.collectionVariables.set(\"planId\", items.length === 1 ? items[0].id : \"\");",
+                  "  if (items.length > 1 && !pm.collectionVariables.get(\"planId\")) console.info(\"Choose planId from items in this response and set the collection variable before continuing.\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C Load current plan version and fill run variables",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/plans/{{planId}}",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const plan = pm.response.json();",
+                  "  const version = plan.versions.find(item => item.version === plan.currentVersion);",
+                  "  pm.collectionVariables.set(\"planId\", plan.id);",
+                  "  pm.collectionVariables.set(\"planVersion\", plan.currentVersion);",
+                  "  for (const key of [\"targetId\", \"virtualUsers\", \"durationSeconds\", \"scriptSha256\"]) pm.collectionVariables.set(key, \"\");",
+                  "  pm.test(\"Current version has a script\", () => pm.expect(Boolean(version && version.script)).to.eql(true));",
+                  "  if (version && version.script) {",
+                  "    const script = version.script;",
+                  "    pm.collectionVariables.set(\"targetId\", script.definition.targetId);",
+                  "    pm.collectionVariables.set(\"virtualUsers\", script.definition.workload.virtualUsers);",
+                  "    pm.collectionVariables.set(\"durationSeconds\", script.definition.workload.durationSeconds);",
+                  "    pm.collectionVariables.set(\"scriptSha256\", script.sha256);",
+                  "    pm.test(\"Current script has been reviewed\", () => pm.expect(script.reviewStatus).to.eql(\"reviewed\"));",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Read approved run ceilings",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/plans/{{planId}}/run-policy",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test('Global maximum is at most five', () => pm.expect(pm.response.json().maxConcurrentRuns).to.be.at.most(5));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Approve and queue a run (creates real authorized load)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/plans/{{planId}}/runs",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"targetId\": \"{{targetId}}\",\n  \"planVersion\": {{planVersion}},\n  \"workload\": {\n    \"virtualUsers\": {{virtualUsers}},\n    \"durationSeconds\": {{durationSeconds}}\n  },\n  \"authorizationConfirmed\": true,\n  \"approved\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 202\", () => pm.response.to.have.status(202));",
+              "const run = pm.response.json();",
+              "pm.collectionVariables.set('runId', run.runId);",
+              "pm.test('Run recorded', () => { pm.expect(run.runId).to.be.a('string'); pm.expect(run.status).to.eql('queued'); pm.expect(run.summary).to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Retry same approval key without duplicating execution",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/plans/{{planId}}/runs",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"targetId\": \"{{targetId}}\",\n  \"planVersion\": {{planVersion}},\n  \"workload\": {\n    \"virtualUsers\": {{virtualUsers}},\n    \"durationSeconds\": {{durationSeconds}}\n  },\n  \"authorizationConfirmed\": true,\n  \"approved\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 202\", () => pm.response.to.have.status(202));",
+              "pm.test('Same run ID', () => pm.expect(pm.response.json().runId).to.eql(pm.collectionVariables.get('runId')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Read run status",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/runs/{{runId}}",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test('Known lifecycle state', () => pm.expect(['queued','running','completed','failed','cancelling','cancelled']).to.include(pm.response.json().status));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Request cancellation",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/runs/{{runId}}/cancel",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 202\", () => pm.response.to.have.status(202));",
+              "pm.test('Cancellation or terminal state', () => pm.expect(['cancelling','cancelled','completed','failed']).to.include(pm.response.json().status));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Read final or cancelling status",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/runs/{{runId}}",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Reject absent explicit approval",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/plans/{{planId}}/runs",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"targetId\": \"{{targetId}}\",\n  \"planVersion\": {{planVersion}},\n  \"workload\": {\n    \"virtualUsers\": {{virtualUsers}},\n    \"durationSeconds\": {{durationSeconds}}\n  },\n  \"authorizationConfirmed\": true,\n  \"approved\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Reject same key with changed request",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/plans/{{planId}}/runs",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"targetId\": \"{{targetId}}\",\n  \"planVersion\": 999999,\n  \"workload\": {\n    \"virtualUsers\": {{virtualUsers}},\n    \"durationSeconds\": {{durationSeconds}}\n  },\n  \"authorizationConfirmed\": true,\n  \"approved\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Reject missing idempotency key",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/plans/{{planId}}/runs",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"targetId\": \"{{targetId}}\",\n  \"planVersion\": {{planVersion}},\n  \"workload\": {\n    \"virtualUsers\": {{virtualUsers}},\n    \"durationSeconds\": {{durationSeconds}}\n  },\n  \"authorizationConfirmed\": true,\n  \"approved\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

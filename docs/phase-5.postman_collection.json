@@ -1,0 +1,438 @@
+{
+  "info": {
+    "name": "Phase 5 \u2014 Results, reports, exports and notices (No Auth)",
+    "description": "Phase 5 only. Run npm run phase5:seed for synthetic IDs, start npm run start:phase5, then set projectId/runId/planId. No login token. This collection never approves a load test or confirms deletion. SLA example updates only future approvals. Use the separate deletion collection only after saving your export. Approved local policy: manual deletion only, 30-day retention target, 2-day notice lead time, in-app notices. Automatic deletion and email sending are disabled.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000/api/v1"
+    },
+    {
+      "key": "projectId",
+      "value": ""
+    },
+    {
+      "key": "planId",
+      "value": ""
+    },
+    {
+      "key": "runId",
+      "value": ""
+    },
+    {
+      "key": "artifactId",
+      "value": ""
+    },
+    {
+      "key": "downloadUrl",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    },
+    {
+      "key": "exportArtifactId",
+      "value": ""
+    },
+    {
+      "key": "exportDownloadUrl",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Read run \u2014 repeat until resultStatus is ready",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/runs/{{runId}}",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"Result processing is ready\", () => pm.expect(result.resultStatus).to.eql(\"ready\"));",
+              "pm.test(\"Measured or explicitly synthetic source\", () => pm.expect([\"k6\", \"fixture\"]).to.include(result.summary && result.summary.source));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 List JSON and HTML reports",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/runs/{{runId}}/reports",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const reports = pm.response.json().items;",
+              "const report = reports.find(item => item.format === \"json\");",
+              "if (report) pm.collectionVariables.set(\"artifactId\", report.artifactId);",
+              "pm.test(\"Both report formats exist\", () => pm.expect(reports.map(item => item.format)).to.have.members([\"html\", \"json\"]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Issue short-lived report download link",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/artifacts/{{artifactId}}/download-link",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"downloadUrl\", pm.response.json().url);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Download JSON report immediately",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{downloadUrl}}",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Report belongs to this run\", () => pm.expect(pm.response.json().runId).to.eql(pm.collectionVariables.get(\"runId\")));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 List private artifact metadata",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/projects/{{projectId}}/artifacts",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Read SLA thresholds",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/projects/{{projectId}}/sla",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Set SLA for future approvals (example thresholds)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/projects/{{projectId}}/sla",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"p95ResponseTimeMs\": 250,\n  \"maxErrorRate\": 0.01\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Existing results are unchanged\", () => pm.expect(pm.response.json().appliesTo).to.eql(\"future_run_approvals\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Compare run to itself \u2014 zero deltas",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/runs/{{runId}}/comparison?baselineRunId={{runId}}",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Self-comparison is zero\", () => pm.expect(pm.response.json().deltas).to.eql({requestsPerSecond:0,errorRate:0,p95ResponseTimeMs:0}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Read retention and notice state",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/projects/{{projectId}}/retention",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09b Persist approved manual retention policy",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/projects/{{projectId}}/retention",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"retentionDays\": 30,\n  \"noticeDays\": 2,\n  \"deletionMode\": \"manual\",\n  \"channels\": [\n    \"in_app\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Persists the approved manual policy. Does not schedule deletion."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Manual policy saved\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().automaticDeletionEnabled).to.eql(false); pm.expect(pm.response.json().noticeDays).to.eql(2); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Read in-app notices",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/projects/{{projectId}}/notifications",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const notice = pm.response.json().items.find(item => item.channel === \"in_app\");",
+              "pm.collectionVariables.set(\"notificationId\", notice ? notice.id : \"\");"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Mark notice read (skips if none)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/notifications/{{notificationId}}/read",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get(\"notificationId\")) pm.execution.skipRequest();"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Create project export",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/projects/{{projectId}}/exports",
+        "description": "Expected HTTP 201. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"exportArtifactId\", pm.response.json().artifactId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Issue export download link",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/artifacts/{{exportArtifactId}}/download-link",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"exportDownloadUrl\", pm.response.json().url);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Download export \u2014 save response to disk",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{exportDownloadUrl}}",
+        "description": "Expected HTTP 200. See docs/phase-5-results.md for setup and response fields."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const backup = pm.response.json();",
+              "pm.test(\"Export includes project and artifact bytes\", () => { pm.expect(backup.project.id).to.eql(pm.collectionVariables.get(\"projectId\")); pm.expect(backup.artifacts).to.be.an(\"array\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Reject deletion without confirmation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/projects/{{projectId}}/deletion-requests",
+        "description": "Expected HTTP 400. See docs/phase-5-results.md for setup and response fields.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"confirmed\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,393 @@
+{
+  "info": {
+    "name": "AI Performance Agent — Phase 3 only",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Phase 3 APIs using the fixed local mock user and Postman No Auth. Set projectId and targetId. Configure Groq and approved workload ceilings on the API. Draft examples use 1 VU/10 seconds. Generation contacts Groq and saves a pending script version; no request executes load."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "projectId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "planId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "planVersion",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "scriptSha256",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Create plan with OpenAPI operations",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/projects/{{projectId}}/plans",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Health API performance plan\",\n  \"requirementsText\": \"Check staging health and require HTTP 200.\",\n  \"specification\": {\n    \"openapi\": \"3.0.3\",\n    \"info\": {\n      \"title\": \"Staging API\",\n      \"version\": \"1.0.0\"\n    },\n    \"paths\": {\n      \"/health\": {\n        \"get\": {\n          \"responses\": {\n            \"200\": {\n              \"description\": \"Healthy\"\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set('planId', data.id);",
+              "pm.collectionVariables.set('planVersion', data.currentVersion);",
+              "pm.test('First version is a draft', () => { pm.expect(data.currentVersion).to.eql(1); pm.expect(data.versions[0].script).to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 List project plans",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/projects/{{projectId}}/plans"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test('Plan is listed', () => pm.expect(pm.response.json().items.map(p => p.id)).to.include(pm.collectionVariables.get('planId')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Read immutable versions",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/plans/{{planId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test('Versions are present', () => pm.expect(pm.response.json().versions).to.be.an('array').that.is.not.empty);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Save script in next version",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": {{planVersion}},\n  \"requirementsText\": \"Check staging health and require HTTP 200.\",\n  \"script\": {\n    \"targetId\": \"{{targetId}}\",\n    \"workload\": {\n      \"virtualUsers\": 1,\n      \"durationSeconds\": 10\n    },\n    \"scenarios\": [\n      {\n        \"name\": \"Health responds successfully\",\n        \"method\": \"GET\",\n        \"path\": \"/health\",\n        \"expectedStatus\": 200\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set('planVersion', data.currentVersion);",
+              "pm.collectionVariables.set('scriptSha256', data.version.script.sha256);",
+              "pm.test('New script requires review', () => pm.expect(data.version.script.reviewStatus).to.eql('pending'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Unreviewed script download is rejected",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions/{{planVersion}}/script"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "pm.test('Review required', () => pm.expect(pm.response.json().error.message).to.eql('Review this script before downloading'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Record exact script review",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions/{{planVersion}}/review",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reviewed\": true,\n  \"sha256\": \"{{scriptSha256}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "pm.test('Reviewed checksum matches', () => { const s = pm.response.json().script; pm.expect(s.reviewStatus).to.eql('reviewed'); pm.expect(s.sha256).to.eql(pm.collectionVariables.get('scriptSha256')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Download reviewed k6 script",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions/{{planVersion}}/script"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test('JavaScript attachment', () => { pm.expect(pm.response.headers.get('Content-Type')).to.include('application/javascript'); pm.expect(pm.response.headers.get('X-Script-SHA256')).to.eql(pm.collectionVariables.get('scriptSha256')); pm.expect(pm.response.text()).to.include(\"import http from 'k6/http'\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Reject unsafe script path",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": {{planVersion}},\n  \"requirementsText\": \"Reject an external destination.\",\n  \"script\": {\n    \"targetId\": \"{{targetId}}\",\n    \"workload\": {\n      \"virtualUsers\": 1,\n      \"durationSeconds\": 10\n    },\n    \"scenarios\": [\n      {\n        \"name\": \"Health responds successfully\",\n        \"method\": \"GET\",\n        \"path\": \"//evil.example\",\n        \"expectedStatus\": 200\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test('Input policy rejection', () => pm.expect(pm.response.json().error.code).to.eql('planning_input_invalid'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Reject stale version edit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": 1,\n  \"requirementsText\": \"This edit is based on an obsolete version.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Generate a new pending script version with Groq",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/plans/{{planId}}/generate",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"version\": {{planVersion}},\n  \"targetId\": \"{{targetId}}\",\n  \"workload\": {\n    \"virtualUsers\": 1,\n    \"durationSeconds\": 10\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const data = pm.response.json();",
+              "pm.test('Generated a new version', () => pm.expect(data.currentVersion).to.eql(Number(pm.collectionVariables.get('planVersion')) + 1));",
+              "pm.collectionVariables.set('planVersion', data.currentVersion);",
+              "pm.collectionVariables.set('scriptSha256', data.version.script.sha256);",
+              "pm.test('Generated script requires review', () => { pm.expect(data.version.script.validationStatus).to.eql('valid'); pm.expect(data.version.script.reviewStatus).to.eql('pending'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Edit creates a new pending script",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": {{planVersion}},\n  \"requirementsText\": \"Check staging health with an updated scenario label.\",\n  \"script\": {\n    \"targetId\": \"{{targetId}}\",\n    \"workload\": {\n      \"virtualUsers\": 1,\n      \"durationSeconds\": 10\n    },\n    \"scenarios\": [\n      {\n        \"name\": \"Updated health check\",\n        \"method\": \"GET\",\n        \"path\": \"/health\",\n        \"expectedStatus\": 200\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set('planVersion', data.currentVersion);",
+              "pm.collectionVariables.set('scriptSha256', data.version.script.sha256);",
+              "pm.test('New script requires review', () => pm.expect(data.version.script.reviewStatus).to.eql('pending'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Edited script requires fresh review",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/plans/{{planId}}/versions/{{planVersion}}/script"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

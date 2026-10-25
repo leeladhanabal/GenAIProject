@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health/health.controller';
+import { PlansModule } from './plans/plans.module';
 import { ProjectsModule } from './projects/projects.module';
 
 @Module({
@@ -11,6 +12,7 @@ import { ProjectsModule } from './projects/projects.module';
     DatabaseModule,
     AuthModule,
     ProjectsModule,
+    PlansModule,
   ],
   controllers: [HealthController],
 })

@@ -1,9 +1,10 @@
 # AI Performance Testing Agent
 
-Backend foundation for the architecture's Phase 1 and Phase 2. Phase 2 adds
-Google OIDC bearer authentication, PostgreSQL persistence, tenant-scoped
-projects and targets, public target URL validation, and audit events. Plan
-generation and load-test execution are not implemented.
+Backend foundation for the architecture's Phase 1 through the provider-neutral
+plan-management portion of Phase 3. It includes Google OIDC bearer
+authentication, PostgreSQL persistence, tenant-scoped projects and targets,
+public target URL validation, audit events, and immutable plan versions. AI
+generation, workload approval, and load-test execution are not implemented.
 
 ## Requirements
 
@@ -49,6 +50,13 @@ Expected response: `200 OK`
 Follow [docs/phase-2-postman.md](docs/phase-2-postman.md) to configure Google
 OIDC authentication and PostgreSQL, then test project and authorized-target
 endpoints. Only register targets you own or are explicitly authorized to test.
+
+## Phase 3 plan APIs
+
+Apply migrations with `npm run db:migrate`, then follow
+[docs/phase-3-plans.md](docs/phase-3-plans.md) to create and version plans.
+These endpoints store requirements only; they do not generate scripts or start
+tests.
 
 ## Verify locally
 

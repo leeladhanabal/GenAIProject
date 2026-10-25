@@ -20,6 +20,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node", "jest"]
   },
-  "include": ["apps/api/src/**/*.ts"],
+  "include": ["apps/api/src/**/*.ts", "apps/worker/src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

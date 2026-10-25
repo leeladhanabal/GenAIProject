@@ -9,13 +9,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthenticatedRequest } from '../auth/authenticated-request';
-import { GoogleIdTokenGuard } from '../auth/google-id-token.guard';
+import { LocalUserGuard } from '../auth/local-user.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { RegisterTargetDto } from './dto/register-target.dto';
 import { ProjectsService } from './projects.service';
 
 @Controller('projects')
-@UseGuards(GoogleIdTokenGuard)
+@UseGuards(LocalUserGuard)
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { GoogleIdTokenGuard } from './google-id-token.guard';
+import { LocalUserGuard } from './local-user.guard';
 
 @Module({
-  providers: [GoogleIdTokenGuard],
-  exports: [GoogleIdTokenGuard],
+  providers: [LocalUserGuard],
+  exports: [LocalUserGuard],
 })
 export class AuthModule {}

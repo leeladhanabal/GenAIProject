@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class CreatePlanVersionDto {
   @Transform(({ value }: { value: unknown }) =>
@@ -9,4 +9,17 @@ export class CreatePlanVersionDto {
   @IsNotEmpty()
   @MaxLength(20000)
   requirementsText!: string;
+
+  @IsOptional()
+  @IsObject()
+  specification?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  script?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expectedVersion?: number;
 }

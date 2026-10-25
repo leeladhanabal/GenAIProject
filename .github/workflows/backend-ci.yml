@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'apps/api/**'
+      - 'apps/web/**'
+      - 'apps/worker/**'
       - 'database/migrations/**'
       - 'scripts/migrate.cjs'
       - 'package.json'
@@ -16,6 +18,8 @@ on:
   pull_request:
     paths:
       - 'apps/api/**'
+      - 'apps/web/**'
+      - 'apps/worker/**'
       - 'database/migrations/**'
       - 'scripts/migrate.cjs'
       - 'package.json'

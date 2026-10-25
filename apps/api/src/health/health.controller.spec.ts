@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../app.module';
+import { ConfigService } from '@nestjs/config';
 
 describe('GET /api/v1/health', () => {
   let app: INestApplication;
@@ -9,7 +10,9 @@ describe('GET /api/v1/health', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    }).overrideProvider(ConfigService).useValue(new ConfigService({
+      AUTH_MODE: 'local-mock', NODE_ENV: 'test',
+    })).compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');

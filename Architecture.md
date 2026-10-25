@@ -26,10 +26,10 @@ A web application and API that coordinate AI-assisted planning and script genera
 
 ## 6. Functional Requirements
 
-- Authenticate users through Google Identity using OpenID Connect; domain, MFA, and user-lifecycle configuration remain to be confirmed.
+- For local testing, assign the fixed server-defined mock user without login or tokens. Production authentication and user-lifecycle policy remain to be selected before deployment.
 - Create projects and register approved application targets.
 - Accept requirements and API specifications for test planning.
-- Use one selected AI provider (pending) to assist with scenario and k6 script generation and result interpretation.
+- Use Groq behind an adapter to assist with scenario and k6 script generation and result interpretation; the initial planning model is `llama-3.3-70b-versatile`.
 - Let users review/edit scripts and test parameters.
 - Require authorization confirmation and explicit run approval.
 - Execute queued k6 tests with configured concurrency, duration, and request limits.
@@ -48,15 +48,15 @@ A web application and API that coordinate AI-assisted planning and script genera
 - Use TLS in transit, managed encryption at rest, least-privilege service identities, and private artifact storage.
 - Keep job execution asynchronous and resilient to worker restarts.
 - Maintain auditability of run approvals, execution, and data deletion.
-- Retention: 30-day period was selected; deletion timing/automation and notice lead time need confirmation (see Pending Decisions).
+- Retention: 30-day target, manual deletion only, and 2-day advance notice for future scheduled deletion. Local notices are in-app; automatic deletion and email are disabled.
 
 ## 8. User Roles and Permissions
 
-MVP uses one shared authenticated user role. All authenticated users can create plans, register targets, generate scripts, start runs, and view artifacts in the applicable workspace. Because there are no role distinctions, workspace ownership/access boundaries must be explicit. Do not expose one user's private data to unrelated users. Future organization and fine-grained roles are an enhancement.
+MVP uses one shared user role. Local testing runs as one fixed mock user. Users can create plans, register targets, generate scripts, start runs, and view artifacts in their applicable workspace. Because there are no role distinctions, workspace ownership/access boundaries must be explicit. Do not expose one user's private data to unrelated users. Future organization and fine-grained roles are an enhancement.
 
 ## 9. MVP Scope
 
-Included: React web app, versioned REST API, project/target and plan management, AI-assisted plan/script generation, k6 scripts, bounded background execution, result summaries, basic downloadable reports, audit/monitoring, OIDC authentication, and GitHub Actions integration support through API credentials.
+Included: React web app, versioned REST API, project/target and plan management, AI-assisted plan/script generation, k6 scripts, bounded background execution, result summaries, basic downloadable reports, audit/monitoring, fixed-user local testing, and GitHub Actions integration support through API credentials once production authentication is selected.
 
 Out of scope for MVP: JMeter/LoadRunner/Gatling, multi-cloud deployment, complex approval chains, formal 24/7 SLA, broad enterprise role hierarchy, and unrestricted arbitrary target execution.
 
@@ -72,13 +72,13 @@ Out of scope for MVP: JMeter/LoadRunner/Gatling, multi-cloud deployment, complex
 | Object storage | Google Cloud Storage | Private bucket for scripts, raw results, and reports. |
 | Cloud | Google Cloud | Containerized API and isolated worker workloads. |
 | CI/CD | GitHub Actions | Separate development, staging, production deployments. |
-| Identity | Google Identity / Google Cloud Identity | OIDC provider selected; configure client, audience, MFA, and user lifecycle. |
-| AI | One provider behind an adapter | Provider remains to be selected. |
+| Identity | Fixed local mock user | No login or token in local development/test; production authentication is pending. |
+| AI | Groq behind an adapter | Initial planning model: `llama-3.3-70b-versatile`, configurable through `GROQ_MODEL`. |
 | Observability | Google Cloud Logging and Monitoring | Structured logs, dashboards, metrics, alerts. |
 
 ## 11. Technology Selection Rationale
 
-TypeScript across frontend and backend supports shared validation/types and simplifies team context switching. NestJS gives a modular structure for the API and orchestration logic, with more conventions than a minimal Node framework. PostgreSQL suits related business records and transactional updates. BullMQ supports asynchronous work, but Redis adds operations and must be configured for persistence/availability appropriate to the deployment. Google Cloud Storage is suitable for larger artifacts and keeps binaries out of relational rows. Workers are isolated because load generation can consume substantial CPU/network and must not impair the control plane. AI and identity vendors are intentionally abstracted pending selection.
+TypeScript across frontend and backend supports shared validation/types and simplifies team context switching. NestJS gives a modular structure for the API and orchestration logic, with more conventions than a minimal Node framework. PostgreSQL suits related business records and transactional updates. BullMQ supports asynchronous work, but Redis adds operations and must be configured for persistence/availability appropriate to the deployment. Google Cloud Storage is suitable for larger artifacts and keeps binaries out of relational rows. Workers are isolated because load generation can consume substantial CPU/network and must not impair the control plane. Groq is the selected AI provider behind an adapter. Local identity is supplied by a fixed-user guard; production authentication remains pending.
 
 ## 12. System Architecture
 
@@ -91,7 +91,7 @@ flowchart LR
   U[User or CI client] --> HTTPS[HTTPS Load Balancer]
   HTTPS --> WEB[React web app]
   HTTPS --> API[NestJS REST API]
-  API --> IDP[OIDC identity provider]
+  API --> IDP[Local fixed-user guard]
   API --> DB[(PostgreSQL)]
   API --> Q[Redis / BullMQ]
   Q --> W[Isolated k6 workers]
@@ -107,7 +107,7 @@ flowchart LR
 
 ## 14. Frontend Architecture
 
-React single-page application organized by feature: authentication, projects/targets, plans, script review, run monitoring, results/reports, and settings. Call the REST API through a typed client. Keep tokens out of local storage where possible; prefer a backend-for-frontend secure session pattern if the selected identity integration supports it. Render AI-generated content as untrusted text, never executable HTML. Show workload limits, target, authorization confirmation, and run approval together before launch.
+React single-page application organized by feature: authentication, projects/targets, plans, script review, run monitoring, results/reports, and settings. Call the REST API through a typed client. Local testing uses a fixed user context with no token input or bearer headers. Production login/session design remains pending. Render AI-generated content as untrusted text, never executable HTML. Show workload limits, target, authorization confirmation, and run approval together before launch.
 
 ## 15. Backend Architecture
 
@@ -165,7 +165,7 @@ The ER diagram in Section 17 is the initial relationship model. A plan is versio
 
 ## 19. API Design
 
-Base path `/api/v1`; JSON; OIDC-authenticated user endpoints. Use `Authorization: Bearer <access-token>` for API clients where applicable. Responses use stable error shape `{ "error": { "code", "message", "requestId", "details" } }`. Validate inputs with DTO schemas; return 400 for validation, 401/403 for auth, 404 for unavailable resources, 409 for state conflicts, 429 for rate/queue limits, 202 for accepted background work. Paginate collections with opaque cursors. Apply per-user and per-project rate limits. API tokens for CI should be scoped, hashed at rest, revocable, and issued only after provider/credential design is approved.
+Base path `/api/v1`; JSON. Local endpoints use the fixed mock user with no Authorization header. Explicitly enable `AUTH_MODE=local-mock` and `NODE_ENV=development` or `test`; the API binds to `127.0.0.1` and rejects this mode outside those environments. Responses use stable error shape `{ "error": { "code", "message", "requestId", "details" } }`. Validate inputs with DTO schemas; return 400 for validation, 401/403 for auth, 404 for unavailable resources, 409 for state conflicts, 429 for rate/queue limits, 202 for accepted background work. Paginate collections with opaque cursors. Apply per-user and per-project rate limits. API tokens for CI should be scoped, hashed at rest, revocable, and issued only after provider/credential design is approved.
 
 | Method | Endpoint | Purpose |
 |---|---|---|
@@ -176,6 +176,7 @@ Base path `/api/v1`; JSON; OIDC-authenticated user endpoints. Use `Authorization
 | POST | `/projects/{projectId}/plans` | Create plan. |
 | POST | `/plans/{planId}/generate` | Request AI-assisted scenario/script generation. |
 | GET | `/plans/{planId}` | Read current plan and versions. |
+| GET | `/plans/{planId}/run-policy` | Read configured workload, request, and admission ceilings before run approval. |
 | POST | `/plans/{planId}/runs` | Approve and enqueue a run. |
 | GET | `/runs/{runId}` | Read status and result summary. |
 | POST | `/runs/{runId}/cancel` | Request cancellation. |
@@ -190,7 +191,6 @@ Create a target:
 
 ```http
 POST /api/v1/projects/8dc.../targets
-Authorization: Bearer <access-token>
 Content-Type: application/json
 ```
 
@@ -216,7 +216,6 @@ Start a run:
 
 ```http
 POST /api/v1/plans/2b1.../runs
-Authorization: Bearer <access-token>
 Idempotency-Key: 7e1...
 Content-Type: application/json
 ```
@@ -248,7 +247,9 @@ A run response includes status, timestamps, summary metrics and report IDs when 
 
 ## 21. Authentication and Authorization
 
-Use OIDC Authorization Code flow with PKCE for browser login. Validate issuer, audience, signature, expiry, nonce, and state. Google Identity is the selected provider; configure the OAuth client and confirm domain, MFA, and user lifecycle. API clients should use scoped, expiring/revocable tokens rather than user passwords; token lifecycle and provider support need selection. Enforce project membership and ownership on every object lookup. Shared role means equal capabilities within a project, not global access to every tenant's data.
+For local testing, `LocalUserGuard` attaches the fixed identity `{ issuer: "local-mock", subject: "local-test-user", email: "local-test@example.test", displayName: "Local Test User" }` to every guarded request. No token, login, Google OAuth client, or client-supplied identity is used. The existing issuer/subject user upsert gives this identity a persistent database UUID. This reuses the `oidc_issuer`/`oidc_subject` columns without a schema migration.
+
+Require explicit `AUTH_MODE=local-mock` and `NODE_ENV=development` or `test`, bind the API to `127.0.0.1`, and reject other environments at startup. Mock identity is a local testing mechanism; production authentication, sessions, user lifecycle, and CI credential issuance remain pending before deployment. Enforce project membership and ownership on every object lookup, including disabled-user checks. Existing data is not automatically reassigned to the mock user. Shared role means equal capabilities within an accessible project, not global access to every tenant's data.
 
 ## 22. Security Architecture
 
@@ -265,8 +266,8 @@ Use OIDC Authorization Code flow with PKCE for browser login. Validate issuer, a
 
 ## 23. External Integrations
 
-- **AI provider:** Adapter interface for planning, script assistance, and analysis. Provider selection pending. Define data minimization, retention, training-use policy, quotas, timeout/retry behavior, and prompt-injection handling before production use.
-- **Identity provider:** Google Identity selected. Confirm domain, MFA, user lifecycle, and logout requirements.
+- **AI provider:** Groq is selected behind an adapter; the initial planning model is `llama-3.3-70b-versatile`. Configure `GROQ_API_KEY`, `GROQ_MODEL`, and `GROQ_TIMEOUT_MS` in the local environment. Phase 3 sends only saved requirements and normalized specification operation methods/paths, excluding identity and target configuration. Validate returned scenario data locally and require script review. Confirm account retention, training-use settings, quotas, and acceptable production inputs before production use.
+- **Identity:** Local fixed-user guard selected for development/test. Production provider, MFA, user lifecycle, and logout requirements remain pending.
 - **k6:** Pin a supported runtime/container image; validate generated scripts and execution options.
 - **Notifications:** In-app notification is internal; email provider pending. Use an outbox/retry design and record delivery state.
 - **GitHub Actions:** CI can invoke API with scoped credentials once token issuance is finalized.
@@ -312,7 +313,7 @@ flowchart TB
   EGRESS --> TARGET[Approved test targets]
   API --> GCS[(Private Cloud Storage)]
   W --> GCS
-  API --> OIDC[External OIDC provider]
+  API --> OIDC[Production identity: pending]
   API --> AI[AI provider]
   API --> EMAIL[Email provider]
   API --> OBS[Cloud Logging and Monitoring]
@@ -323,7 +324,7 @@ Use separate cloud projects or equivalent isolation for development, staging, an
 
 ## 30. Environment Configuration
 
-Maintain separate development, staging, and production configurations. Configuration includes database/queue endpoints, bucket names, OIDC issuer/client IDs, AI endpoint/model, notification settings, workload ceilings, approved target policy, and retention settings. Secrets belong in Secret Manager or CI environment secrets, never in source control or generated scripts. Use managed identities and rotation. Staging should use synthetic data and an isolated target.
+Maintain separate development, staging, and production configurations. Configuration includes database/queue endpoints, bucket names, local `AUTH_MODE`/`NODE_ENV`, future production identity settings, AI endpoint/model, notification settings, workload ceilings, approved target policy, and retention settings. Secrets belong in Secret Manager or CI environment secrets, never in source control or generated scripts. Use managed identities and rotation. Staging should use synthetic data and an isolated target.
 
 ## 31. Project Folder Structure
 
@@ -359,23 +360,27 @@ Within `apps/api/src`, organize by feature modules (`identity`, `projects`, `tar
 Objective: establish repository, conventions, and safety boundaries. Tasks: workspace setup, CI checks, cloud environment plan, target threat model, workload policy. Dependencies: none. Deliverables: repo skeleton, ADRs, threat model. Acceptance: CI runs; target and resource policies reviewed. Testing: lint/typecheck and policy unit tests.
 
 ### Phase 2 — Identity, projects, targets, and persistence
-Objective: secure tenant-scoped foundation. Tasks: OIDC integration, project membership, PostgreSQL schema/migrations, target registration and validation, audit events. Dependencies: Google OAuth client and identity policy configuration. Deliverables: authenticated APIs and project/target UI. Acceptance: users cannot access unrelated project data; unsafe targets rejected. Testing: API/access control and URL policy tests.
+Objective: secure tenant-scoped foundation. Tasks: fixed-user local context, project membership, PostgreSQL schema/migrations, target registration and validation, audit events. Dependencies: PostgreSQL and explicit local mock-mode configuration. Deliverables: APIs for the fixed local user and project/target UI; production authentication remains pending. Acceptance: users cannot access unrelated project data; unsafe targets rejected. Testing: API/access control and URL policy tests.
 
 ### Phase 3 — Planning and script generation
-Objective: create reviewable plans and k6 scripts. Tasks: plan/version model, AI adapter, input specification handling, script generation, editing/review UI. Dependencies: AI provider decision and data policy. Deliverables: saved plan versions and downloadable scripts. Acceptance: generated output validated and requires user review before run. Testing: provider contract mocks, injection/input tests, script validation tests.
+Objective: create reviewable plans and k6 scripts. Tasks: plan/version model, AI adapter, input specification handling, script generation, editing/review UI. Dependencies: Groq credentials/model access and data policy. Deliverables: saved plan versions and downloadable scripts. Acceptance: generated output validated and requires user review before run. Testing: provider contract mocks, injection/input tests, script validation tests.
 
 ### Phase 4 — Run orchestration and k6 workers
 Objective: execute bounded asynchronous tests. Tasks: queue/outbox, worker containers, k6 runtime, cancellation/state transitions, allowlist revalidation, resource ceilings. Dependencies: cloud networking and worker runtime choice. Deliverables: queued run lifecycle and status UI. Acceptance: no run bypasses authorization/limits; retries do not duplicate unsafe execution. Testing: local controlled target, queue recovery, cancellation, limit tests.
 
+Local implementation profile: a separate Node worker uses Redis/BullMQ and launches one hardened Docker k6 container per approved run. PostgreSQL records approvals, an immutable script snapshot/checksum, execution fencing, and a transactional outbox. Public IPv4 destinations are revalidated and pinned behind a per-container HTTPS egress firewall. VU/duration/request ceilings must be configured; no unreviewed workload is executable. Cloud execution product/networking selection and real deployment verification remain pending. Results/reports/retention remain Phase 5.
+
 ### Phase 5 — Results, reports, retention, notifications
 Objective: persist results and provide reports with deletion notice controls. Tasks: summary analysis, report generation, private object storage, artifact download, user delete, retention scheduler, in-app/email notifications. Dependencies: retention schedule/notice and email provider decisions. Deliverables: run summaries, downloadable reports, notification records. Acceptance: users receive notice before any configured deletion; deletion removes data and artifacts according to policy. Testing: lifecycle, notification retry, export/deletion consistency.
+
+Current local implementation: measured summaries, SLA snapshots/comparison, escaped JSON/HTML reports, checksummed private filesystem artifacts, short-lived access-checked downloads, JSON backup exports, in-app notification records, and durable explicit project deletion. The approved policy is manual deletion only with a 30-day retention target and 2-day lead time for any future scheduled deletion. Explicitly confirmed project deletion is processed immediately; no automatic deletion is scheduled. The configured Gmail address is a future recipient only; in-app notices are used now and email sending is disabled. The automatic scheduler is tested but disabled. Google Cloud Storage integration remains pending after its SDK installation was declined. See `docs/phase-5-results.md` and its Postman collections. Phase 6 has not started.
 
 ### Phase 6 — Operations and release readiness
 Objective: deploy and operate safely. Tasks: dashboards/alerts, security scanning, staging deployment, backup/restore, runbooks, load/capacity evaluation. Dependencies: cloud product selection and operational ownership. Deliverables: production pipeline and runbooks. Acceptance: restore is demonstrated; alerts cover stuck jobs and capacity; production rollout can roll back. Testing: staging end-to-end and controlled capacity tests.
 
 ## 33. Dependencies
 
-- Decisions: Google Identity domain/MFA/user-lifecycle configuration; AI provider and data-use terms; email provider; deletion schedule and notice lead time; Google Cloud worker runtime/networking design; API token issuance model.
+- Decisions: production authentication provider/domain/MFA/user-lifecycle configuration; Groq account data-use terms/settings; email provider; deletion schedule and notice lead time; Google Cloud worker runtime/networking design; API token issuance model.
 - External: Google Cloud project/billing and service accounts; GitHub repository and environments; approved test target environments; provider credentials.
 - Product: final report formats, SLA thresholds, export/backup behavior, organization/project sharing policy.
 
@@ -390,12 +395,12 @@ Objective: deploy and operate safely. Tasks: dashboards/alerts, security scannin
 | Lost or duplicate jobs | Durable run state, idempotency, transactional outbox/reconciliation, idempotent worker updates. |
 | Data exposure through artifacts or AI provider | Private buckets, access-checked signed links, minimize/redact prompts, provider data controls. |
 | Ambiguous deletion expectation | Confirm schedule and lead time; do not enable irreversible automatic deletion until policy is approved. |
-| Unchosen identity/AI/email vendors delay delivery | Finalize provider decisions during foundation/integration phase; maintain adapters. |
+| Missing provider configuration delays delivery | Configure selected identity/AI providers and finalize the email provider; maintain adapters. |
 | Test traffic hits production unexpectedly | Clearly label target environment, separate allowlists, require confirmation and policy limits. |
 
 ## 35. Assumptions
 
-- The initial users are authenticated performance engineers/developers, with one shared permission level.
+- Local testing uses one fixed mock user with the shared permission level. Production users are expected to be authenticated performance engineers/developers after an authentication provider is selected.
 - Projects provide data isolation even though role distinctions are not required.
 - k6 is the first supported execution tool.
 - Users review generated plans/scripts and approve each run.
@@ -405,14 +410,14 @@ Objective: deploy and operate safely. Tasks: dashboards/alerts, security scannin
 
 ## 36. Pending Decisions
 
-1. Google Identity domain, MFA, user lifecycle, and logout requirements.
-2. AI provider, model, data handling, prompt retention, and acceptable inputs.
-3. Email provider and notification delivery configuration.
-4. **Retention policy:** 30 days was requested, and users asked for email/in-app notification before deletion to allow backup. Confirm whether 30 days is the deletion point or merely a minimum retention period, whether deletion is automatic after notice, the notice lead time, and whether data is retained until the user confirms or takes no action. Until resolved, do not run an automatic deletion job.
+1. Production authentication provider, domain, MFA, user lifecycle, and logout requirements. Local fixed-user testing requires no Google OAuth client.
+2. Groq is selected, with initial planning model `llama-3.3-70b-versatile`. Account data handling, prompt retention/training-use settings, and acceptable production inputs remain to be confirmed.
+3. Local notification choice: in-app only for now. The Gmail address in `.env` is a future recipient; email provider, sender, and delivery credentials remain deferred.
+4. **Approved local retention policy:** 30-day target, manual deletion only, 2-day advance notice for any future scheduled deletion. Do not run automatic deletion. Explicit project deletion requires confirmation and a downloaded backup should be saved first.
 5. API automation token issuance, scope, expiry, and revocation policy.
 6. Google Cloud execution product (Cloud Run or GKE/other) based on maximum test duration and worker networking/resource requirements.
 7. Exact target allowlist ownership and support for private network targets.
-8. Report formats for MVP and backup/export mechanism before deletion.
+8. Local Phase 5 reports are JSON/HTML; backup is a JSON export with original artifact bytes. Cloud Storage integration and production-scale export/restore remain pending.
 
 ## 37. Future Enhancements
 
@@ -420,7 +425,7 @@ Support additional load tools (JMeter, Gatling, LoadRunner); role-based organiza
 
 ## 38. Definition of Done
 
-- Users authenticate through the selected OIDC provider and project data is isolated.
+- Local flows use the fixed mock user with project data isolation; production authentication must be selected and implemented before deployment.
 - Users can register a target, create/version a plan, review a generated k6 script, and approve a bounded run.
 - Workers execute only approved, allowlisted targets under enforced limits and expose reliable status.
 - Results and reports are stored privately, access-checked, and downloadable.

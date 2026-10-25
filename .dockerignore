@@ -1,0 +1,13 @@
+.git
+**/node_modules
+**/.env
+**/.env.*
+.aws
+.agents
+.codex
+dist
+dist-worker
+dist-web
+coverage
+.local
+*.log

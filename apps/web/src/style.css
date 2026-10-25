@@ -1,0 +1,22 @@
+:root { font-family: system-ui, sans-serif; color: #17312e; background: #f3f6f3; }
+body { margin: 0; }
+main { max-width: 1120px; margin: auto; padding: 36px 20px; }
+header { margin-bottom: 28px; }
+h1 { font-size: 2.4rem; margin: 10px 0; }
+h2 { font-size: 1.25rem; }
+p { line-height: 1.6; }
+p { overflow-wrap: anywhere; }
+section { background: white; border: 1px solid #cedbd2; border-radius: 12px; padding: 22px; margin-bottom: 20px; }
+label { display: block; font-weight: 600; margin: 14px 0; }
+input, textarea, select { box-sizing: border-box; display: block; width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #93a99d; border-radius: 5px; font: inherit; }
+textarea, pre { font-family: ui-monospace, monospace; font-size: 14px; }
+button { background: #1b5e4d; color: white; border: 0; border-radius: 6px; padding: 10px 15px; margin: 4px 10px 4px 0; cursor: pointer; font: inherit; }
+button:disabled { opacity: .5; cursor: default; }
+button.plan { display: block; text-align: left; width: 100%; }
+.columns { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+pre { overflow: auto; padding: 16px; background: #edf2ee; white-space: pre-wrap; overflow-wrap: anywhere; }
+.checksum { overflow-wrap: anywhere; font-size: 13px; }
+.check { display: flex; gap: 10px; align-items: center; }
+.check input { width: auto; }
+[role=status] { padding: 8px 0 20px; }
+@media (max-width: 720px) { .columns { grid-template-columns: 1fr; } }

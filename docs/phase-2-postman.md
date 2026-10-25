@@ -1,6 +1,6 @@
 # Phase 2 — Postman and local setup
 
-Phase 2 implements Google OIDC bearer-token authentication, PostgreSQL-backed
+Phase 2 uses the fixed local mock user, PostgreSQL-backed
 users/projects/targets/audit events, project access isolation, and public-target
 URL checks. It does not implement plan generation, load-test execution, or any
 later-phase endpoint.
@@ -20,13 +20,8 @@ later-phase endpoint.
 3. Copy `.env.example` to `.env`, then set:
    - `DATABASE_URL` to the local PostgreSQL connection string. Keep the password
      in this ignored `.env` file; do not commit it or send it in chat.
-   - `GOOGLE_CLIENT_ID` to the OAuth 2.0 client ID described below.
-4. In Google Cloud Console, create an OAuth 2.0 client with the Postman callback
-   URL `https://oauth.pstmn.io/v1/callback`. Configure the consent screen and,
-   while the app is in testing mode, add the Google account you will use as a
-   test user. Keep the OAuth client secret in Postman's local authorization
-   settings; the API only needs the client ID.
-5. Run the database migration and API:
+   - `AUTH_MODE=local-mock` and `NODE_ENV=development` for local testing.
+4. Run the database migration and API:
 
    ```powershell
    npm install
@@ -34,44 +29,39 @@ later-phase endpoint.
    npm run start:dev
    ```
 
-If the API was already running while `.env` was edited, stop it and start it
-again so the process loads the Google client ID and database connection.
+After editing `.env`, restart the API. It listens only on `127.0.0.1`, port
+`3000` by default. The health endpoint is `GET http://127.0.0.1:3000/api/v1/health`.
 
-The health check remains available at `GET http://localhost:3000/api/v1/health`
-without authentication.
+## Use the fixed local user in Postman
 
-## Get a Google ID token in Postman
+Set the collection/request Authorization tab to **No Auth**. No token, login,
+or Google client configuration is required. Use `Content-Type: application/json`
+on POSTs with JSON bodies.
 
-For each authenticated request, set Authorization to **OAuth 2.0** and request
-a token using:
+Every request uses this server-defined identity:
 
-- Grant type: Authorization Code (with PKCE)
-- Callback URL: `https://oauth.pstmn.io/v1/callback`
-- Auth URL: `https://accounts.google.com/o/oauth2/v2/auth`
-- Access Token URL: `https://oauth2.googleapis.com/token`
-- Client ID: the same value as `GOOGLE_CLIENT_ID`
-- Client Secret: the secret for the Google OAuth client (keep it in Postman,
-  not in the API `.env` or source control)
-- Scope: `openid email profile`
-- Client authentication: send client credentials in the request body if the
-  Google client flow requires a secret
+```json
+{
+  "issuer": "local-mock",
+  "subject": "local-test-user",
+  "email": "local-test@example.test",
+  "displayName": "Local Test User"
+}
+```
 
-After Postman obtains the token, use the **Google `id_token`** from the token
-response as the HTTP bearer credential. Do not use the OAuth access token for
-these API endpoints. If Postman only exposes the access token in its OAuth
-helper, copy `id_token` from the OAuth token response and set the request's
-Authorization tab to **Bearer Token**, pasting the ID token as its value.
-Set `Content-Type` to `application/json` for requests with a body.
-
-The ID token audience must equal `GOOGLE_CLIENT_ID`; its Google signature,
-issuer, expiry, subject, and verified-email claim are checked by the API.
+The existing user upsert creates a persistent UUID for this issuer/subject on
+first use. Project membership and disabled-account checks still apply. Headers
+and request bodies cannot switch the user. Existing projects owned by previous
+identities need explicit membership for this user or fresh local test data.
+This mode is enabled only with `AUTH_MODE=local-mock` and `NODE_ENV=development`
+or `test`; API startup rejects other configurations, including production.
 
 ## Phase 2 endpoints
 
 ### Create a project
 
 ```http
-POST http://localhost:3000/api/v1/projects
+POST http://127.0.0.1:3000/api/v1/projects
 Content-Type: application/json
 ```
 
@@ -98,10 +88,10 @@ Save the returned `id` as `projectId` in Postman.
 ### List accessible projects
 
 ```http
-GET http://localhost:3000/api/v1/projects
+GET http://127.0.0.1:3000/api/v1/projects
 ```
 
-Expected: `200 OK`. Newly authenticated users receive an empty `items` array
+Expected: `200 OK`. The local user receives an empty `items` array
 until they create a project.
 
 ```json
@@ -125,7 +115,7 @@ not include credentials, a custom port, query string, or fragment. Private,
 loopback, link-local, metadata, and reserved IP destinations are rejected.
 
 ```http
-POST http://localhost:3000/api/v1/projects/{{projectId}}/targets
+POST http://127.0.0.1:3000/api/v1/projects/{{projectId}}/targets
 Content-Type: application/json
 ```
 
@@ -159,7 +149,7 @@ Expected: `201 Created`
 ### List targets for a project
 
 ```http
-GET http://localhost:3000/api/v1/projects/{{projectId}}/targets
+GET http://127.0.0.1:3000/api/v1/projects/{{projectId}}/targets
 ```
 
 Expected: `200 OK`
@@ -185,18 +175,8 @@ Expected: `200 OK`
 All API errors have the architecture's stable shape. `requestId` also appears
 in the `X-Request-Id` response header.
 
-Missing or invalid bearer token: `401 Unauthorized`
-
-```json
-{
-  "error": {
-    "code": "unauthorized",
-    "message": "A Google ID token bearer credential is required",
-    "requestId": "c2bff7c8-5d6e-40b4-8f20-154b646a79e1",
-    "details": null
-  }
-}
-```
+A disabled local account returns `403 Forbidden`. Missing an Authorization
+header is valid in local mock mode.
 
 Invalid target policy: `400 Bad Request`
 

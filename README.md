@@ -90,7 +90,11 @@ project/plan/run IDs without running load. Start `npm run start:phase5` alongsid
 the API, then import [the Phase 5 collection](docs/phase-5.postman_collection.json).
 Use No Auth. [Explicit deletion has a separate collection](docs/phase-5-deletion.postman_collection.json)
 that is disabled by default. Save your export before confirming deletion.
-Phase 6 requires your approval and has not started.
+Phase 6 is approved for initial release-readiness work. Cloud Run API with GKE
+Standard workers is the selected design direction for evaluation only; the
+operations owner remains undecided, and no cloud resources are provisioned.
+See [the Phase 6 cloud decision](docs/phase-6-cloud-decision.md) and
+[local release-readiness runbook](docs/runbooks/phase-6-release-readiness.md).
 
 ## Verify locally
 

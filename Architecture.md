@@ -373,10 +373,22 @@ Local implementation profile: a separate Node worker uses Redis/BullMQ and launc
 ### Phase 5 — Results, reports, retention, notifications
 Objective: persist results and provide reports with deletion notice controls. Tasks: summary analysis, report generation, private object storage, artifact download, user delete, retention scheduler, in-app/email notifications. Dependencies: retention schedule/notice and email provider decisions. Deliverables: run summaries, downloadable reports, notification records. Acceptance: users receive notice before any configured deletion; deletion removes data and artifacts according to policy. Testing: lifecycle, notification retry, export/deletion consistency.
 
-Current local implementation: measured summaries, SLA snapshots/comparison, escaped JSON/HTML reports, checksummed private filesystem artifacts, short-lived access-checked downloads, JSON backup exports, in-app notification records, and durable explicit project deletion. The approved policy is manual deletion only with a 30-day retention target and 2-day lead time for any future scheduled deletion. Explicitly confirmed project deletion is processed immediately; no automatic deletion is scheduled. The configured Gmail address is a future recipient only; in-app notices are used now and email sending is disabled. The automatic scheduler is tested but disabled. Google Cloud Storage integration remains pending after its SDK installation was declined. See `docs/phase-5-results.md` and its Postman collections. Phase 6 has not started.
+Current local implementation: measured summaries, SLA snapshots/comparison, escaped JSON/HTML reports, checksummed private filesystem artifacts, short-lived access-checked downloads, JSON backup exports, in-app notification records, and durable explicit project deletion. The approved policy is manual deletion only with a 30-day retention target and 2-day lead time for any future scheduled deletion. Explicitly confirmed project deletion is processed immediately; no automatic deletion is scheduled. The configured Gmail address is a future recipient only; in-app notices are used now and email sending is disabled. The automatic scheduler is tested but disabled. Google Cloud Storage integration remains pending after its SDK installation was declined. See `docs/phase-5-results.md` and its Postman collections.
 
 ### Phase 6 — Operations and release readiness
 Objective: deploy and operate safely. Tasks: dashboards/alerts, security scanning, staging deployment, backup/restore, runbooks, load/capacity evaluation. Dependencies: cloud product selection and operational ownership. Deliverables: production pipeline and runbooks. Acceptance: restore is demonstrated; alerts cover stuck jobs and capacity; production rollout can roll back. Testing: staging end-to-end and controlled capacity tests.
+
+Current status: Phase 6 was approved for initial, platform-independent
+release-readiness work. The API now has separate liveness and PostgreSQL
+readiness checks; CI checks dependency vulnerabilities, runs CodeQL analysis,
+and scans the hardened k6 worker image. Local backup/restore guidance and a
+cloud-platform decision record are documented. Cloud Run API with GKE Standard workers is the selected design direction for
+evaluation only; an operational owner and cloud
+environment are not selected. Cloud deployment, production dashboards/alerts,
+and staging capacity tests remain blocked on operational ownership and approved
+staging infrastructure. The local Docker worker requires a Kubernetes Job
+runtime adapter before it can run on GKE. These initial deliverables do not
+satisfy Phase 6 completion or production readiness.
 
 ## 33. Dependencies
 

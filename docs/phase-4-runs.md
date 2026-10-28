@@ -46,7 +46,7 @@ MAX_REQUESTS_PER_RUN=<approved positive integer>
 MAX_CONCURRENT_RUNS=5
 REDIS_URL=redis://127.0.0.1:6379/0
 WORKER_HOST_ID=local-docker
-K6_WORKER_IMAGE=performance-k6:2.3.0-phase5
+K6_WORKER_IMAGE=performance-k6:1.8.2-phase5
 WORKER_CPUS=1
 WORKER_MEMORY_MB=512
 WORKER_PIDS_LIMIT=128
@@ -79,7 +79,7 @@ From the repository root:
 npm install
 npm run db:migrate
 docker compose -f compose.phase4.yml up -d redis
-docker build -f apps/worker/docker/Dockerfile -t performance-k6:2.3.0-phase5 .
+docker build -f apps/worker/docker/Dockerfile -t performance-k6:1.8.2-phase5 .
 npm run build
 ```
 
@@ -95,8 +95,11 @@ npm run start:worker
 
 Optionally start the UI in another terminal with `npm run start:web`, then open
 `http://127.0.0.1:5173`. The worker checks the hardened image before claiming
-runs and uses its immutable image ID for execution. A plain `grafana/k6` image
-does not contain this profile's firewall entrypoint and will be rejected.
+runs and uses its immutable image ID for execution. The image pins Grafana k6
+v1.8.2, a security-maintenance release; CI smoke-tests the worker's CLI options
+and generated runtime option shape before scanning the image. A plain
+`grafana/k6` image does not contain this profile's firewall entrypoint and will
+be rejected.
 
 The Redis compose file binds to loopback and enables append-only persistence.
 PostgreSQL remains the source of truth; queue loss does not authorize rerunning
@@ -305,7 +308,7 @@ unintended live load. Queued approvals can be cancelled without executing them.
   Clean those only after confirming their containers have stopped.
 
 References: [k6 execution options](https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/),
-[k6 pinned release](https://github.com/grafana/k6/releases/tag/v2.3.0),
+[k6 pinned release](https://github.com/grafana/k6/releases/tag/v1.8.2),
 [BullMQ job IDs](https://docs.bullmq.io/guide/jobs/job-ids),
 [BullMQ stalled jobs](https://docs.bullmq.io/guide/jobs/stalled),
 [Docker resource constraints](https://docs.docker.com/engine/containers/resource_constraints/).

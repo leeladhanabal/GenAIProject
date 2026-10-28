@@ -70,7 +70,7 @@ export function containerName(runId: string): string {
 
 export function dockerArguments(run: RunRow, directory: string, pinnedIp: string, config: ConfigService, resolvedImage?: string): string[] {
   const memory = positiveSetting(config, 'WORKER_MEMORY_MB', 512);
-  const image = resolvedImage ?? config.get<string>('K6_WORKER_IMAGE') ?? 'performance-k6:2.3.0-phase5';
+  const image = resolvedImage ?? config.get<string>('K6_WORKER_IMAGE') ?? 'performance-k6:1.8.2-phase5';
   // Never use a shell. Environment and image settings are operator-only.
   return ['create', '--name', containerName(run.id), '--restart=no', '--read-only',
     '--cpus', String(positiveSetting(config, 'WORKER_CPUS', 1)),
@@ -98,7 +98,7 @@ export class DockerK6Runtime implements K6Runtime {
     for (const [name, fallback] of [['WORKER_CPUS', 1], ['WORKER_MEMORY_MB', 512], ['WORKER_PIDS_LIMIT', 128]] as const) {
       positiveSetting(this.config, name, fallback);
     }
-    const image = this.config.get<string>('K6_WORKER_IMAGE') ?? 'performance-k6:2.3.0-phase5';
+    const image = this.config.get<string>('K6_WORKER_IMAGE') ?? 'performance-k6:1.8.2-phase5';
     const result = await this.docker.run(['image', 'inspect', '--format',
       '{{.Id}} {{index .Config.Labels "org.performance-agent.profile"}}', image]);
     const [id, profile] = result.stdout.trim().split(/\s+/);

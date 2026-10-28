@@ -1,4 +1,4 @@
-FROM grafana/k6:2.3.0 AS k6
+FROM grafana/k6:1.8.2 AS k6
 FROM alpine:3.22
 LABEL org.performance-agent.profile="phase5-k6-v1"
 RUN apk add --no-cache ca-certificates iptables util-linux-misc coreutils

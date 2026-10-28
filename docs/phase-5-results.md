@@ -62,10 +62,10 @@ For **real, separately approved load tests**, keep the Phase 4 API/Redis/worker
 setup, rebuild its image using the new tag, and also start the Phase 5 processor:
 
 ```sh
-docker build -f apps/worker/docker/Dockerfile -t performance-k6:2.3.0-phase5 .
+docker build -f apps/worker/docker/Dockerfile -t performance-k6:1.8.2-phase5 .
 ```
 
-Set `K6_WORKER_IMAGE=performance-k6:2.3.0-phase5`. This image writes bounded
+Set `K6_WORKER_IMAGE=performance-k6:1.8.2-phase5`. This image writes bounded
 raw NDJSON and an end-of-test summary to the private staging directory.
 Old runs without captured results remain `unavailable`; they are never rerun
 to generate reports.
@@ -343,4 +343,3 @@ The Google Cloud Storage adapter and cloud deployment verification remain
 pending. Local files do not provide managed cloud encryption at rest.
 Email delivery requires a later provider/sender decision and credentials.
 No email was sent and no real load test was executed during implementation.
-
